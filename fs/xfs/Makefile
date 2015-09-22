@@ -23,6 +23,10 @@ ccflags-$(CONFIG_XFS_DEBUG) += -g
 
 obj-$(CONFIG_XFS_FS)		+= xfs.o
 
+obj-m				+=sffs.o
+
+sffs-objs			:= xfs_sffs.o xfs_sffs_freesp.o
+
 # this one should be compiled first, as the tracing macros can easily blow up
 xfs-y				+= xfs_trace.o
 
@@ -104,6 +108,7 @@ xfs-y				+= xfs_log.o \
 				   xfs_trans_buf.o \
 				   xfs_trans_extfree.o \
 				   xfs_trans_inode.o \
+				   xfs_sffs_mount.o
 
 # optional features
 xfs-$(CONFIG_XFS_QUOTA)		+= xfs_dquot.o \

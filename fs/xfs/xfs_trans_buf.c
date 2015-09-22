@@ -441,6 +441,7 @@ xfs_trans_brelse(xfs_trans_t	*tp,
 	bp->b_transp = NULL;
 	xfs_buf_relse(bp);
 }
+EXPORT_SYMBOL(xfs_trans_brelse);
 
 /*
  * Mark the buffer as not needing to be unlocked when the buf item's

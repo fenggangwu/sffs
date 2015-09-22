@@ -42,6 +42,7 @@
 #include "xfs_icache.h"
 #include "xfs_sysfs.h"
 
+#include "xfs_sffs_mount.h"
 
 static DEFINE_MUTEX(xfs_uuid_table_mutex);
 static int xfs_uuid_table_size;
@@ -933,6 +934,8 @@ xfs_mountfs(
 	"Unable to allocate reserve blocks. Continuing without reserve pool.");
 	}
 
+	xfs_sffs_mount(mp);
+
 	return 0;
 
  out_rtunmount:
@@ -1037,6 +1040,8 @@ xfs_unmountfs(
 	xfs_free_perag(mp);
 
 	xfs_sysfs_del(&mp->m_kobj);
+
+	xfs_sffs_umount(mp);
 }
 
 /*

@@ -144,6 +144,7 @@ typedef struct xfs_mount {
 	 * to various other kinds of pain inflicted on the pNFS server.
 	 */
 	__uint32_t		m_generation;
+	struct xfs_sffs_freesp  *m_freesp;        /*sffs free space table*/
 } xfs_mount_t;
 
 /*

@@ -43,11 +43,30 @@ struct workqueue_struct *xfs_alloc_wq;
 #define	XFSA_FIXUP_BNO_OK	1
 #define	XFSA_FIXUP_CNT_OK	2
 
-STATIC int xfs_alloc_ag_vextent_exact(xfs_alloc_arg_t *);
-STATIC int xfs_alloc_ag_vextent_near(xfs_alloc_arg_t *);
-STATIC int xfs_alloc_ag_vextent_size(xfs_alloc_arg_t *);
+STATIC int xfs_alloc_ag_vextent_exact_original(xfs_alloc_arg_t *);
+STATIC int xfs_alloc_ag_vextent_near_original(xfs_alloc_arg_t *);
+EXPORT_SYMBOL(xfs_alloc_ag_vextent_near_original);
+STATIC int xfs_alloc_ag_vextent_size_original(xfs_alloc_arg_t *);
+EXPORT_SYMBOL(xfs_alloc_ag_vextent_size_original);
 STATIC int xfs_alloc_ag_vextent_small(xfs_alloc_arg_t *,
-		xfs_btree_cur_t *, xfs_agblock_t *, xfs_extlen_t *, int *);
+	xfs_btree_cur_t *, xfs_agblock_t *, xfs_extlen_t *, int *);
+
+STATIC  int
+(*xfs_alloc_ag_vextent_exact)(
+	      xfs_alloc_arg_t *) = &xfs_alloc_ag_vextent_exact_original; 
+EXPORT_SYMBOL(xfs_alloc_ag_vextent_exact);
+
+STATIC int
+(*xfs_alloc_ag_vextent_near)(
+	      xfs_alloc_arg_t *) = &xfs_alloc_ag_vextent_near_original; 
+EXPORT_SYMBOL(xfs_alloc_ag_vextent_near);
+
+STATIC int
+(*xfs_alloc_ag_vextent_size)(
+	      xfs_alloc_arg_t *) = &xfs_alloc_ag_vextent_size_original; 
+EXPORT_SYMBOL(xfs_alloc_ag_vextent_size);
+
+
 
 /*
  * Lookup the record equal to [bno, len] in the btree given by cur.
@@ -267,6 +286,7 @@ xfs_alloc_fix_len(
 	ASSERT(rlen % args->prod == args->mod);
 	args->len = rlen;
 }
+EXPORT_SYMBOL(xfs_alloc_fix_len);
 
 /*
  * Fix up length if there is too little space left in the a.g.
@@ -649,7 +669,7 @@ xfs_alloc_ag_vextent(
  * Return the starting a.g. block (bno), or NULLAGBLOCK if we can't do it.
  */
 STATIC int			/* error */
-xfs_alloc_ag_vextent_exact(
+xfs_alloc_ag_vextent_exact_original(
 	xfs_alloc_arg_t	*args)	/* allocation argument structure */
 {
 	xfs_btree_cur_t	*bno_cur;/* by block-number btree cursor */
@@ -852,7 +872,7 @@ error0:
  * Return the starting a.g. block, or NULLAGBLOCK if we can't do it.
  */
 STATIC int				/* error */
-xfs_alloc_ag_vextent_near(
+xfs_alloc_ag_vextent_near_original(
 	xfs_alloc_arg_t	*args)		/* allocation argument structure */
 {
 	xfs_btree_cur_t	*bno_cur_gt;	/* cursor for bno btree, right side */
@@ -1249,7 +1269,7 @@ restart:
  * Return the starting a.g. block, or NULLAGBLOCK if we can't do it.
  */
 STATIC int				/* error */
-xfs_alloc_ag_vextent_size(
+xfs_alloc_ag_vextent_size_original(
 	xfs_alloc_arg_t	*args)		/* allocation argument structure */
 {
 	xfs_btree_cur_t	*bno_cur;	/* cursor for bno btree */
@@ -2368,6 +2388,7 @@ xfs_alloc_read_agf(
 	xfs_perag_put(pag);
 	return 0;
 }
+EXPORT_SYMBOL(xfs_read_agf);
 
 /*
  * Allocate an extent (variable-size).
