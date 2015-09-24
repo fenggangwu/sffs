@@ -80,7 +80,7 @@ int xfs_sffs_freesp_init(xfs_mount_t *mp, xfs_sffs_freesp_t *freesp)
 	ag_free_start = XFS_FSB_TO_AGBNO(mp, fs_free_start);
 	printk("xfs_sffs: free space starts from %u\n", ag_free_start);
 
-	freesp->size = longest / XFS_SFFS_SBAND_BLKS;
+	freesp->size = longest / XFS_SFFS_SZONE_BLKS;
 	/* here the remainder blocks less than one superblock is discarded */
 	freesp->table = vmalloc(sizeof(struct xfs_sffs_superband_entry) *
 			     freesp->size);
@@ -110,15 +110,15 @@ int xfs_sffs_freesp_init(xfs_mount_t *mp, xfs_sffs_freesp_t *freesp)
 	 * the ambigous case from happening.
 	 */
 
-	printk("%7s%11s%11s%11s%11s\n", "idx", "sbandstart", "loghead", 
+	printk("%7s%11s%11s%11s%11s\n", "idx", "szonestart", "loghead", 
 	       "logtail", "freecnt");
 	for (i = 0; i < freesp->size; i++) {
-		freesp->table[i].sbandstart = ag_free_start + XFS_SFFS_SBAND_BLKS * i;
-		freesp->table[i].loghead = freesp->table[i].sbandstart;
-		freesp->table[i].logtail = freesp->table[i].sbandstart;
+		freesp->table[i].szonestart = ag_free_start + XFS_SFFS_SZONE_BLKS * i;
+		freesp->table[i].loghead = freesp->table[i].szonestart;
+		freesp->table[i].logtail = freesp->table[i].szonestart;
 		/* leave at least one guard block to prevent head pointer 
 		   to hit tail poitner.*/
-		freesp->table[i].freecnt = XFS_SFFS_SBAND_BLKS - 1; 
+		freesp->table[i].freecnt = XFS_SFFS_SZONE_BLKS - 1; 
 		/*
 		printk("%7d%19u%19u%19u\n%7s%19x%19x%19x\n%7s%19lx%19lx%19lx\n", 
 		       i,
@@ -138,7 +138,7 @@ int xfs_sffs_freesp_init(xfs_mount_t *mp, xfs_sffs_freesp_t *freesp)
 
 		printk("%7lu%11u%11u%11u%11u\n",
 		       i,
-		       freesp->table[i].sbandstart,
+		       freesp->table[i].szonestart,
 		       freesp->table[i].loghead,
 		       freesp->table[i].logtail,
 		       freesp->table[i].freecnt);
@@ -147,8 +147,8 @@ int xfs_sffs_freesp_init(xfs_mount_t *mp, xfs_sffs_freesp_t *freesp)
 	
 	
 	printk("xfs_sffs: init xfs_sffs_freesp....\n");
-	printk("xfs_sffs: XFS_SFFS_BAND_BLKS:%d\n", XFS_SFFS_BAND_BLKS);
-	printk("xfs_sffs: XFS_SFFS_SBAND_BLKS:%d\n", XFS_SFFS_SBAND_BLKS);
+	printk("xfs_sffs: XFS_SFFS_ZONE_BLKS:%d\n", XFS_SFFS_ZONE_BLKS);
+	printk("xfs_sffs: XFS_SFFS_SZONE_BLKS:%d\n", XFS_SFFS_SZONE_BLKS);
 	printk("xfs_sffs: %lu table entries created\n", freesp->size);
 	
 

@@ -50,6 +50,9 @@ STATIC int xfs_alloc_ag_vextent_size_original(xfs_alloc_arg_t *);
 EXPORT_SYMBOL(xfs_alloc_ag_vextent_size_original);
 STATIC int xfs_alloc_ag_vextent_small(xfs_alloc_arg_t *,
 	xfs_btree_cur_t *, xfs_agblock_t *, xfs_extlen_t *, int *);
+int xfs_free_extent_original(xfs_trans_t *, xfs_fsblock_t, xfs_extlen_t);
+
+
 
 STATIC  int
 (*xfs_alloc_ag_vextent_exact)(
@@ -65,6 +68,11 @@ STATIC int
 (*xfs_alloc_ag_vextent_size)(
 	      xfs_alloc_arg_t *) = &xfs_alloc_ag_vextent_size_original; 
 EXPORT_SYMBOL(xfs_alloc_ag_vextent_size);
+
+int (*xfs_free_extent_worker)(
+	      xfs_trans_t *, xfs_fsblock_t, xfs_extlen_t) 
+              = &xfs_free_extent_original;
+EXPORT_SYMBOL(xfs_free_extent_worker);
 
 
 
@@ -2612,7 +2620,7 @@ error0:
  * after fixing up the freelist.
  */
 int				/* error */
-xfs_free_extent(
+xfs_free_extent_original(
 	xfs_trans_t	*tp,	/* transaction pointer */
 	xfs_fsblock_t	bno,	/* starting block number of extent */
 	xfs_extlen_t	len)	/* length of extent */
@@ -2657,4 +2665,14 @@ xfs_free_extent(
 error0:
 	xfs_perag_put(args.pag);
 	return error;
+}
+
+
+int				/* error */
+xfs_free_extent(
+	xfs_trans_t	*tp,	/* transaction pointer */
+	xfs_fsblock_t	bno,	/* starting block number of extent */
+	xfs_extlen_t	len)	/* length of extent */
+{
+	return xfs_free_extent_worker(tp, bno, len);
 }

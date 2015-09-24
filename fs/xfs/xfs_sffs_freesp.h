@@ -2,7 +2,7 @@
 #define __XFS_SFFS_FREESP_H__
 
 typedef struct xfs_sffs_superband_entry {
-	xfs_agblock_t sbandstart;
+	xfs_agblock_t szonestart;
 	xfs_agblock_t loghead;
 	xfs_agblock_t logtail;
 	xfs_agblock_t freecnt; /* free cnt = #clean block + #invalid block */

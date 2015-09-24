@@ -47,12 +47,17 @@ extern void (*xfs_alloc_ag_vextent_near)(xfs_alloc_arg_t *);
 static void (*xfs_alloc_ag_vextent_size_origin)(xfs_alloc_arg_t *);
 extern void (*xfs_alloc_ag_vextent_size)(xfs_alloc_arg_t *);
 
+static int (*xfs_free_extent_origin)(
+			  xfs_trans_t *, xfs_fsblock_t, xfs_extlen_t);
+extern int (*xfs_free_extent_worker)(
+			  xfs_trans_t *, xfs_fsblock_t, xfs_extlen_t);
 
 extern int xfs_alloc_ag_vextent_exact_original(xfs_alloc_arg_t *);
 extern int xfs_alloc_ag_vextent_near_original(xfs_alloc_arg_t *);
 extern int xfs_alloc_ag_vextent_size_original(xfs_alloc_arg_t *);
 
 extern void xfs_alloc_fix_len(xfs_alloc_arg_t *);
+
 
 /*                                                                              * Helper function for allocting from the free space table loghead pointer.     * In sffs, all three AG alloc type will be served by this helper function.     */
 STATIC int
@@ -63,8 +68,8 @@ xfs_sffs_alloc_ag_vextent_smr(
 	int longest = 0; /* the longest available extent in the super band */
 	xfs_agblock_t head; /* loghead pointer */
 	xfs_agblock_t tail; /* logend pointer */
-	xfs_agblock_t sb_start; /* startbno for the superband */
-	xfs_agblock_t sb_end;
+	xfs_agblock_t szone_start; /* startbno for the superzone */
+	xfs_agblock_t szone_end;
 
 	int sbandcase;
 	xfs_mount_t *mp = args->mp;
@@ -94,7 +99,7 @@ xfs_sffs_alloc_ag_vextent_smr(
 		ASSERT(XFS_SFFS_AGBNO_TO_SBAND(args->agbno) < 
 		       mp->m_freesp->size);
 		if (args->agbno != 
-		    mp->m_freesp->table[XFS_SFFS_AGBNO_TO_SBAND(args->agbno)].
+		    mp->m_freesp->table[XFS_SFFS_AGBNO_TO_SZONE(args->agbno)].
 		    loghead) {
 			goto outnoblock;
 		}
@@ -109,13 +114,13 @@ xfs_sffs_alloc_ag_vextent_smr(
 		 */
 
 		for (i = 0; i < mp->m_freesp->size; i++) {
-			sb_start = mp->m_freesp->table[i].sbandstart;
-			sb_end = sb_start + XFS_SFFS_SBAND_BLKS - 1;
+			szone_start = mp->m_freesp->table[i].szonestart;
+			szone_end = szone_start + XFS_SFFS_SZONE_BLKS - 1;
 			head = mp->m_freesp->table[i].loghead;
 			tail = mp->m_freesp->table[i].logtail; 
 			/*
-			printk("xfs_sffs: iter\n%ssb[%d] start=%u end=%u head=%u tail=%u freecnt=%u\n",
-			       "", i, sb_start, sb_end, 		     
+			printk("xfs_sffs: iter\n%sszone[%d] start=%u end=%u head=%u tail=%u freecnt=%u\n",
+			       "", i, szone_start, szone_end, 		     
 			       mp->m_freesp->table[i].loghead,
 			       mp->m_freesp->table[i].logtail,
 			       mp->m_freesp->table[i].freecnt);
@@ -134,9 +139,9 @@ xfs_sffs_alloc_ag_vextent_smr(
 			       &mp->m_freesp->table[i].freecnt);
 
 
-			printk("%10stable[i].sbandstart=%x, &=%lx\n", 
-			       "", mp->m_freesp->table[i].sbandstart,
-			       &mp->m_freesp->table[i].sbandstart);
+			printk("%10stable[i].szonestart=%x, &=%lx\n", 
+			       "", mp->m_freesp->table[i].szonestart,
+			       &mp->m_freesp->table[i].szonestart);
 
 			printk("%10shead=%x, &=%lx\n", 
 			       "", head, &head);
@@ -146,7 +151,7 @@ xfs_sffs_alloc_ag_vextent_smr(
 			*/
 
 			if (head >= tail) {
-				if (tail != sb_start) {
+				if (tail != szone_start) {
 					/*
 					 * case 1:
 					 *          longest contiguous extent
@@ -163,7 +168,7 @@ xfs_sffs_alloc_ag_vextent_smr(
 					 * contigous data extent.
 					 */
 					sbandcase = 1;
-					longest = sb_end - head + 1;
+					longest = szone_end - head + 1;
 				} else /* tail == 0 */ {
 					/*
 					 * case 2:
@@ -178,7 +183,7 @@ xfs_sffs_alloc_ag_vextent_smr(
 					 * because head pointer cannot hit tail
 					 */
 					sbandcase = 2;
-					longest = sb_end - head;
+					longest = szone_end - head;
 				}
 			} else {/* head < tail */
 
@@ -201,13 +206,13 @@ xfs_sffs_alloc_ag_vextent_smr(
 			       sbandcase, longest);
 			/* give up if longest == 0 or less then min request */
 			if (!longest || longest < args->minlen) {
-				printk("xfs_sffs: longest=%u, args->minlen=%u, continue search for next super band\n",
-				       longest, args->minlen);
+				printk("xfs_sffs: szone=%d, longest=%u, args->minlen=%u, continue search for next super zone\n",
+				       i, longest, args->minlen);
 				continue;
 			}
 			/*
 			printk("xfs_sffs: before\n%ssb[%d] start=%u end=%u head=%u tail=%u freecnt=%u\n",
-			       "", i, sb_start, sb_end, 		     
+			       "", i, szone_start, szone_end, 		     
 			       mp->m_freesp->table[i].loghead,
 			       mp->m_freesp->table[i].logtail,
 			       mp->m_freesp->table[i].freecnt);
@@ -227,15 +232,15 @@ xfs_sffs_alloc_ag_vextent_smr(
 			switch (sbandcase) {
 			case 1:
 				ASSERT(mp->m_freesp_table[i].loghead 
-				       <= sb_end + 1);
+				       <= szone_end + 1);
 				if (mp->m_freesp->table[i].loghead == 
-				    sb_end + 1)
+				    szone_end + 1)
 					mp->m_freesp->table[i].loghead = 
-						sb_start;
+						szone_start;
 				break;
 			case 2:
 				ASSERT(mp->m_freesp_table[i].loghead 
-				       <= sb_end);
+				       <= szone_end);
 				break;
 			case 3:
 			        ASSERT(mp->m_freesp->table[i].loghead <= 
@@ -245,8 +250,8 @@ xfs_sffs_alloc_ag_vextent_smr(
 				ASSERT(0);
 			}
 			mp->m_freesp->table[i].freecnt -= args->len;
-			printk("xfs_sffs: sb=%d [%u %u] head=%u tail=%u freecnt=%u\n",
-			       i, sb_start, sb_end, 		     
+			printk("xfs_sffs: szone=%d [%u %u] head=%u tail=%u freecnt=%u\n",
+			       i, szone_start, szone_end, 		     
 			       mp->m_freesp->table[i].loghead,
 			       mp->m_freesp->table[i].logtail,
 			       mp->m_freesp->table[i].freecnt);
@@ -270,6 +275,12 @@ xfs_sffs_alloc_ag_vextent_smr(
 	return 0;
 }
 
+int xfs_free_extent_impl(xfs_trans_t *tp, xfs_fsblock_t bno, xfs_extlen_t len)
+{
+	printk("xfs_sffs: free extent (bno, len) = (%lu, %lu)\n", bno, len);
+	printk("          now do nothing. Postpone the implmentation for this fuction until GC\n");
+	return 0;
+}
 
 /*
  * Now for simplicity of the problem, the following
@@ -326,6 +337,9 @@ int init_module(void)
 
 	xfs_alloc_ag_vextent_size_origin = xfs_alloc_ag_vextent_size;
 	xfs_alloc_ag_vextent_size = &xfs_sffs_alloc_ag_vextent_smr;
+
+	xfs_free_extent_origin = xfs_free_extent_worker;
+	xfs_free_extent_worker = &xfs_free_extent_impl;
 	return 0;
 }
 
@@ -339,6 +353,8 @@ void cleanup_module(void)
 	xfs_alloc_ag_vextent_exact = xfs_alloc_ag_vextent_exact_origin;
 	xfs_alloc_ag_vextent_near = xfs_alloc_ag_vextent_near_origin;
 	xfs_alloc_ag_vextent_size = xfs_alloc_ag_vextent_size_origin;
+	
+	xfs_free_extent_worker = xfs_free_extent_origin;
 }
 
 
