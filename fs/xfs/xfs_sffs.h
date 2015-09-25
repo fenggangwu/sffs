@@ -17,4 +17,7 @@
 #define XFS_SFFS_AGBNO_TO_SZONE(agbno)    \
 	(agbno >> (XFS_SFFS_SZONE_ZONE_SHIFT + XFS_SFFS_ZONE_BLK_SHIFT))
 
+/* essentially, the quota ratio initially is 50% */
+#define XFS_SFFS_SZONE_INIT_BLK_QUOTA              (XFS_SFFS_SZONE_BLKS >> 1)
+
 #endif /* __XFS_SFFS_H__ */

@@ -66,20 +66,21 @@ xfs_sffs_alloc_ag_vextent_smr(
 {
 	int i;
 	int longest = 0; /* the longest available extent in the super band */
+	int available = 0; /* within superzone quota, the availble size left */
 	xfs_agblock_t head; /* loghead pointer */
 	xfs_agblock_t tail; /* logend pointer */
 	xfs_agblock_t szone_start; /* startbno for the superzone */
 	xfs_agblock_t szone_end;
 
-	int sbandcase;
+	int szonecase;
 	xfs_mount_t *mp = args->mp;
-	
+	/*	
 	printk("\n");
 	printk("xfs_sffs: type=%d\n", args->type);
 	printk("%10sfsbno=%lu agno=%u agbno=%u\n", 
 	       "", args->fsbno, args->agno, args->agbno);
 	printk("%10sminlen=%u maxlen=%u minleft=%u total=%u len=%u\n", 
-	       "", args->maxlen, args->minlen, args->minleft, args->total,
+	       "", args->minlen, args->maxlen, args->minleft, args->total,
 	       args->len);
 	//	printk("%10slen=%x, &args->len=%x\n", "", args->len, &args->len);
 	printk("%10smod=%u prod=%u\n", 
@@ -93,6 +94,23 @@ xfs_sffs_alloc_ag_vextent_smr(
 
 	printk("%10suserdata=%d firstblock=%lu\n", 
 	       "", args->userdata, args->firstblock);
+	*/
+
+	printk("xfs_sffs: alloc_ag_vextent_smr\n");
+	printk("%10sminlen=%u maxlen=%u minleft=%u total=%u len=%u\n", 
+	       "", args->minlen, args->maxlen, args->minleft, args->total,
+	       args->len);
+
+
+	/* give up if the allocation will exceed the quota */
+	if (XFS_SFFS_SZONE_INIT_BLK_QUOTA  < args->minlen) {
+		printk("xfs_sffs: global quota=%u < args->minlen=%u\n",
+		       XFS_SFFS_SZONE_INIT_BLK_QUOTA,
+		       args->minlen);
+		goto outnoblock;
+	}
+
+
 
 	switch (args->type) {
         case XFS_ALLOCTYPE_THIS_BNO:   /* for exact bno */
@@ -118,6 +136,11 @@ xfs_sffs_alloc_ag_vextent_smr(
 			szone_end = szone_start + XFS_SFFS_SZONE_BLKS - 1;
 			head = mp->m_freesp->table[i].loghead;
 			tail = mp->m_freesp->table[i].logtail; 
+			available = mp->m_freesp->table[i].freecnt 
+				+ XFS_SFFS_SZONE_INIT_BLK_QUOTA 
+				- (XFS_SFFS_SZONE_BLKS - 1); /* -1 due to the guard block for the circular log in super zone*/
+
+
 			/*
 			printk("xfs_sffs: iter\n%sszone[%d] start=%u end=%u head=%u tail=%u freecnt=%u\n",
 			       "", i, szone_start, szone_end, 		     
@@ -167,7 +190,7 @@ xfs_sffs_alloc_ag_vextent_smr(
 					 * from the start, because it is not a 
 					 * contigous data extent.
 					 */
-					sbandcase = 1;
+					szonecase = 1;
 					longest = szone_end - head + 1;
 				} else /* tail == 0 */ {
 					/*
@@ -182,7 +205,7 @@ xfs_sffs_alloc_ag_vextent_smr(
 					 * longest = [head, END - 1]
 					 * because head pointer cannot hit tail
 					 */
-					sbandcase = 2;
+					szonecase = 2;
 					longest = szone_end - head;
 				}
 			} else {/* head < tail */
@@ -198,17 +221,28 @@ xfs_sffs_alloc_ag_vextent_smr(
 				 * longest = [head, tail - 2]
 				 * because head pointer cannot hit tail
 				 */
-				sbandcase = 3;
+				szonecase = 3;
 				longest = tail - head - 1;
 			}
 
-			printk("xfs_sffs: case=%d longest=%u\n", 
-			       sbandcase, longest);
+			/*			printk("xfs_sffs: case=%d longest=%u\n", 
+						szonecase, longest);*/
 			/* give up if longest == 0 or less then min request */
 			if (!longest || longest < args->minlen) {
-				printk("xfs_sffs: szone=%d, longest=%u, args->minlen=%u, continue search for next super zone\n",
-				       i, longest, args->minlen);
+				printk("xfs_sffs: szone=%d, longest=%u (case %d), args->minlen=%u, continue searching for next super zone\n",
+				       i, longest, szonecase, args->minlen);
 				continue;
+			}
+
+			/* give up if the allocation will exceed the quota */
+			if (available < args->minlen) {
+				printk("xfs_sffs: szone=%d, avalible quota=%u < args->minlen=%u, continue searching for next super zone\n",
+				       i, available, args->minlen);
+				continue;
+				/*				printk("          freecnt=%d, quota=%d, total=%d\n",
+				       mp->m_freesp->table[i].freecnt,
+				       XFS_SFFS_SZONE_INIT_BLK_QUOTA,
+				       XFS_SFFS_SZONE_BLKS);*/
 			}
 			/*
 			printk("xfs_sffs: before\n%ssb[%d] start=%u end=%u head=%u tail=%u freecnt=%u\n",
@@ -219,9 +253,13 @@ xfs_sffs_alloc_ag_vextent_smr(
 			*/
 
 			args->agbno = head;
-			/* len should be the smaller between the two */
+			/* len should be the smallest between among 
+			 * args->maxlen, available quota and longest extent
+			 */
 			args->len = longest < args->maxlen? 
 				longest : args->maxlen;
+			args->len = args->len < available? 
+				args->len : available;
 			
 			/* fix the length according to mod and prod if given */
 			xfs_alloc_fix_len(args);
@@ -229,7 +267,7 @@ xfs_sffs_alloc_ag_vextent_smr(
 
 			/* fix up the free space table */
 			mp->m_freesp->table[i].loghead += args->len;
-			switch (sbandcase) {
+			switch (szonecase) {
 			case 1:
 				ASSERT(mp->m_freesp_table[i].loghead 
 				       <= szone_end + 1);
@@ -250,11 +288,6 @@ xfs_sffs_alloc_ag_vextent_smr(
 				ASSERT(0);
 			}
 			mp->m_freesp->table[i].freecnt -= args->len;
-			printk("xfs_sffs: szone=%d [%u %u] head=%u tail=%u freecnt=%u\n",
-			       i, szone_start, szone_end, 		     
-			       mp->m_freesp->table[i].loghead,
-			       mp->m_freesp->table[i].logtail,
-			       mp->m_freesp->table[i].freecnt);
 
 			goto outsuccess;
 		}
@@ -270,8 +303,20 @@ xfs_sffs_alloc_ag_vextent_smr(
 	return 0;
 
  outsuccess:
-	printk("xfs_sffs: alloc success bno=%u, len=%u\n", 
-	       args->agbno, args->len);
+	printk("xfs_sffs: alloc success szone=%d, bno=%u, len=%u\n", 
+	       i, args->agbno, args->len);
+
+	available = mp->m_freesp->table[i].freecnt 
+		+ XFS_SFFS_SZONE_INIT_BLK_QUOTA 
+		- (XFS_SFFS_SZONE_BLKS - 1); /* -1 due to the guard block for the circular log in super zone*/
+
+	printk("xfs_sffs: szone=%d head=%u tail=%u freecnt=%u available=%u\n",
+	       i, 
+	       mp->m_freesp->table[i].loghead,
+	       mp->m_freesp->table[i].logtail,
+	       mp->m_freesp->table[i].freecnt,
+	       available);
+
 	return 0;
 }
 

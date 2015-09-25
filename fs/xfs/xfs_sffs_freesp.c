@@ -149,6 +149,7 @@ int xfs_sffs_freesp_init(xfs_mount_t *mp, xfs_sffs_freesp_t *freesp)
 	printk("xfs_sffs: init xfs_sffs_freesp....\n");
 	printk("xfs_sffs: XFS_SFFS_ZONE_BLKS:%d\n", XFS_SFFS_ZONE_BLKS);
 	printk("xfs_sffs: XFS_SFFS_SZONE_BLKS:%d\n", XFS_SFFS_SZONE_BLKS);
+	printk("xfs_sffs: XFS_SFFS_SZONE_INIT_BLK_QUOTA:%d\n", XFS_SFFS_SZONE_INIT_BLK_QUOTA);
 	printk("xfs_sffs: %lu table entries created\n", freesp->size);
 	
 
